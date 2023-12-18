@@ -12,7 +12,7 @@ import numpy as np
 import warnings
 warnings.filterwarnings("ignore")
 
-CACHE_DIR = '/home/eklavya/Code/.cache'
+CACHE_DIR = '.cache'
 TOKEN = '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'
 
 def get_model(model_id):
@@ -52,7 +52,7 @@ def get_model(model_id):
     )
 
     llm = HuggingFacePipeline(pipeline=generate_text, 
-                              model_kwargs={'temperature':0.00})
+                              model_kwargs={'temperature':0.01})
     
     return llm
 
@@ -163,10 +163,12 @@ def get_results(llm_chain, src_path, dst_path, batch_size = 50):
     try:
         df = pd.read_csv(dst_path)
         print("-- Output exists -- Beginning Batch Processing")
-        # i = tmp.dropna(subset=['travel_mode']).shape[0]
-        # flag = True
     except:
-        df = pd.read_csv(src_path)
+        try:
+            df = pd.read_csv(src_path)
+        except:
+            print("Data Not Found")
+            return
 
         print("-- Read data -- Begninning Batch Processing")
         df['travel_mode'] = None
@@ -177,6 +179,10 @@ def get_results(llm_chain, src_path, dst_path, batch_size = 50):
     
     print(f"-- {len(tmp)} Number of Rows to be processed")
     inputs = []
+    
+    if len(tmp) == 0:
+        return
+    
     
     for i, x in zip(tmp.index, tmp['processed_txt'].values):
         inputs.append({'input': x, 'idx': i})
@@ -210,36 +216,52 @@ def get_results(llm_chain, src_path, dst_path, batch_size = 50):
     df.to_csv(dst_path, index=False)
     
     
+       
+
+def main():
     
-# ----------------------------- MISTRAL 7B ---------------------
+    model_inp = int(input(
+    """
+Choose Model:
 
-model_id = "mistralai/Mistral-7B-Instruct-v0.1"
-model_name = 'mistral_7b_instruct'
+[1] Llama2-7B-Chat-HF
+[2] Mistral-7B
 
-if not os.path.exists("/home/eklavya/Code/Results/" + model_name):
-    os.mkdir(os.path.join("/home/eklavya/Code/Results/", model_name))
+Select 1 or 2\n"""    
+    ))
+    
+    if model_inp == 1:
+        model_id = "meta-llama/Llama-2-7b-chat-hf"
+        model_name = 'llama2_7b_chat'
+
+        if not os.path.exists(os.path.join("Results/", model_name)):
+            os.mkdir(os.path.join("Results/", model_name))
+            
+    elif model_inp == 2:
+        model_id = "mistralai/Mistral-7B-Instruct-v0.1"
+        model_name = 'mistral_7b_instruct'
+
+        if not os.path.exists("Results/" + model_name):
+            os.mkdir(os.path.join("Results/", model_name))
+                
+    else:
+        print("Invalid Input received. Please run again.")
+        return 
+    
+    llm = get_model(model_id=model_id)
+    prompt = get_prompt()
+    llm_chain = llm_chain_fn(llm=llm, prompt=prompt)
+
+    print("Model Initialized")
+
+    src_path1 = 'Data/processed_2000_2999.csv'
+    dst_path1 = f'Results/{model_name}/results_2000_2999.csv'
+
+    src_path2 = 'Data/processed_3000_3999.csv'
+    dst_path2 = f'Results/{model_name}/results_3000_3999.csv'
+
+    get_results(llm_chain=llm_chain, src_path=src_path1, dst_path=dst_path1, batch_size=100)
+    get_results(llm_chain=llm_chain, src_path=src_path2, dst_path=dst_path2, batch_size=50)
     
 
-# ----------------------------- LLAMA2 7B ---------------------
-
-# model_id = "meta-llama/Llama-2-7b-chat-hf"
-# model_name = 'llama2_7b_chat'
-
-# if not os.path.exists(os.path.join("../Results/", model_name)):
-#     os.mkdir(os.path.join("../Results/", model_name))
-        
-
-llm = get_model(model_id=model_id)
-prompt = get_prompt()
-llm_chain = llm_chain_fn(llm=llm, prompt=prompt)
-
-print("Model Initialized")
-
-src_path1 = '/home/eklavya/Code/Data/processed_2000_2999.csv'
-dst_path1 = f'/home/eklavya/Code/Results/{model_name}/results_2000_2999.csv'
-
-src_path2 = '/home/eklavya/Code/Data/processed_3000_3999.csv'
-dst_path2 = f'/home/eklavya/Code/Results/{model_name}/results_3000_3999.csv'
-
-get_results(llm_chain=llm_chain, src_path=src_path1, dst_path=dst_path1, batch_size=100)
-get_results(llm_chain=llm_chain, src_path=src_path2, dst_path=dst_path2, batch_size=50)
+main()
